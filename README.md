@@ -162,8 +162,6 @@ data-generating process. Neither requires exact recovery of noisy latent factors
 - `docs/STA4020_L7_Risk Modeling I.pdf` and `docs/STA4020_L8_Risk Modeling II.pdf`:
   lecture slides included with Prof. Chuan Shi's permission.
 - `pyproject.toml`: package metadata and dependencies.
-- `.github/workflows/tests.yml`: runs the synthetic tests and notebook on pushes
-  and pull requests using Python 3.12.
 
 Return/alpha models, portfolio optimization, trading and strategy backtesting
 are outside this implementation.
