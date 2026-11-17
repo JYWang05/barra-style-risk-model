@@ -6,7 +6,9 @@ Date: 2026-11-17. Status: implemented; synthetic verification and audit complete
 
 Build one Python pipeline covering the risk-estimation methods developed in STA4020 Lectures 7 and 8. Under factor-level integration, its primary output is
 
-$$\hat\Sigma_{R,t+1\mid t}=\beta_t\hat\Sigma_{f,t+1\mid t}\beta_t^\top+\hat\Sigma_{u,t+1\mid t}.$$
+```math
+\hat\Sigma_{R,t+1\mid t}=\beta_t\hat\Sigma_{f,t+1\mid t}\beta_t^\top+\hat\Sigma_{u,t+1\mid t}.
+```
 
 Requirements: preserve lecture notation/formulas; support the specified estimator alternatives through shared interfaces; use only information available at the forecast origin; expose necessary intermediate estimates; develop and validate exclusively with synthetic data. Real data is not a completion gate.
 
@@ -98,15 +100,21 @@ The result satisfies $\sum_i s_i\beta_{i,t-1}^{S_q}=0$. Country and industry col
 
 **Calculation:** use lagged exposures/caps for each return:
 
-$$R_t^e=\beta_{t-1}f_t+e_t,\quad W_{ii}=\frac{\sqrt{s_i}}{\sum_j\sqrt{s_j}},\quad s_{I_p}=\frac{\sum_{i\in I_p}s_i}{\sum_{i=1}^N s_i},\quad \sum_p s_{I_p}f_{I_p,t}=0.$$
+```math
+R_t^e=\beta_{t-1}f_t+e_t,\quad W_{ii}=\frac{\sqrt{s_i}}{\sum_j\sqrt{s_j}},\quad s_{I_p}=\frac{\sum_{i\in I_p}s_i}{\sum_{i=1}^N s_i},\quad \sum_p s_{I_p}f_{I_p,t}=0.
+```
 
 Construct the slide's $C\in\mathbb R^{K\times(K-1)}$ to map the free factor returns into the full vector $f$. Country/styles pass through; always eliminate the last industry in input ordering:
 
-$$f_{I_P}=-\sum_{p=1}^{P-1}\frac{s_{I_p}}{s_{I_P}}f_{I_p}.$$
+```math
+f_{I_P}=-\sum_{p=1}^{P-1}\frac{s_{I_p}}{s_{I_P}}f_{I_p}.
+```
 
 Free coordinates are country, the first $P-1$ industries and all styles. Each industry needs positive total caps. With $\beta=\beta_{t-1}$:
 
-$$\Omega_{t-1}=C(C^\top\beta^\top W\beta C)^{-1}C^\top\beta^\top W,\quad \hat f_t=\Omega_{t-1}R_t^e,\quad \hat e_t=R_t^e-\beta_{t-1}\hat f_t.$$
+```math
+\Omega_{t-1}=C(C^\top\beta^\top W\beta C)^{-1}C^\top\beta^\top W,\quad \hat f_t=\Omega_{t-1}R_t^e,\quad \hat e_t=R_t^e-\beta_{t-1}\hat f_t.
+```
 
 Solve the least-squares problem with design $W^{1/2}\beta C$ and response $W^{1/2}R_t^e$ using QR/SVD and a rank check; never explicitly invert or silently accept deficient rank. Row multipliers are $\sqrt{W_{ii}}$, not $W_{ii}$.
 
@@ -114,7 +122,14 @@ Solve the least-squares problem with design $W^{1/2}\beta C$ and response $W^{1/
 
 ### 4.3 Pure factor portfolio identities
 
-$$\Omega\beta=\begin{bmatrix}D_{(1+P)\times(1+P)}&0_{(1+P)\times Q}\\0_{Q\times(1+P)}&I_{Q\times Q}\end{bmatrix},\qquad \Omega R^e=\hat f.$$
+```math
+\Omega\beta =
+\begin{bmatrix}
+D_{(1+P)\times(1+P)} & 0_{(1+P)\times Q}
+\\ 0_{Q\times(1+P)} & I_{Q\times Q}
+\end{bmatrix},
+\qquad \Omega R^e=\hat f.
+```
 
 The block $D$ describes country/industry exposures. Style portfolios have unit own-style and zero other exposure. Industry $p$ has own-industry exposure $1-s_{I_p}$, other-industry exposure $-s_{I_q}$ and zero country/style exposure. The country portfolio has country exposure one, industry exposures $s_{I_p}$ and style exposures zero. Industry/style weights sum to zero; country weights sum to one. The country/industry block is not identity; country holdings need not equal cap weights or all be nonnegative.
 
@@ -135,7 +150,9 @@ Module 1 supplies factor returns and residuals. Stock covariance uses stock retu
 
 **Calculation:** for demeaned returns $X$ with $T$ rows, the sample covariance and its shrunk estimate are
 
-$$S=(T-1)^{-1}X^\top X,\qquad\hat\Sigma=wF+(1-w)S,\quad0\leq w\leq1.$$
+```math
+S=(T-1)^{-1}X^\top X,\qquad\hat\Sigma=wF+(1-w)S,\quad0\leq w\leq1.
+```
 
 | `method` | Target and required arguments |
 |---|---|
@@ -157,7 +174,9 @@ Ordinary covariance shrinkage applies to stock matrices, with $d=N$. Module 4 al
 3. Compute simulated sample covariance $\tilde\Sigma_{f,m}=\tilde U_m\tilde D_m\tilde U_m^\top$ with the same ordering, and $D_m=\tilde U_m^\top\hat\Sigma_f\tilde U_m$.
 4. Correct and reconstruct:
 
-$$\nu_k=M^{-1}\sum_m\sqrt{(D_m)_{kk}/(\tilde D_m)_{kk}},\quad \nu_k^s=a(\nu_k-1)+1,\quad (D_0)_{kk}=(\nu_k^s)^2D_{kk},\quad \hat\Sigma_{f,0}=UD_0U^\top.$$
+```math
+\nu_k=M^{-1}\sum_m\sqrt{(D_m)_{kk}/(\tilde D_m)_{kk}},\quad \nu_k^s=a(\nu_k-1)+1,\quad (D_0)_{kk}=(\nu_k^s)^2D_{kk},\quad \hat\Sigma_{f,0}=UD_0U^\top.
+```
 
 **Output:** the adjusted covariance $\hat\Sigma_{f,0}$, denoted $\hat\Sigma_f^\star$ in L8.
 
@@ -167,13 +186,13 @@ $$\nu_k=M^{-1}\sum_m\sqrt{(D_m)_{kk}/(\tilde D_m)_{kk}},\quad \nu_k^s=a(\nu_k-1)
 
 **Calculation:** `estimate_specific_variance` returns sample variances with denominator $T-1$. `shrink_specific_variance` takes their square roots and applies the L7 Bayesian adjustment. Sort caps, break ties by input order and form ten nearly equal-count size groups. Within each group, use the cap-weighted mean volatility as the prior and unweighted dispersion around that prior:
 
-$$
+```math
 \begin{gathered}
-\bar\sigma(S_i)=\sum_{j\in S_i}w_j\hat\sigma_j,\\
-\nu_i=\frac{q|\hat\sigma_i-\bar\sigma(S_i)|}{\sqrt{\frac1{N(S_i)}\sum_{j\in S_i}(\hat\sigma_j-\bar\sigma(S_i))^2}+q|\hat\sigma_i-\bar\sigma(S_i)|},\\
-\sigma_i^{SH}=\nu_i\bar\sigma(S_i)+(1-\nu_i)\hat\sigma_i,\qquad \hat\Sigma_u^\star=\mathrm{diag}((\sigma_1^{SH})^2,\ldots,(\sigma_N^{SH})^2).
+\bar\sigma(S_i)=\sum_{j\in S_i}w_j\hat\sigma_j,
+\\ \nu_i=\frac{q|\hat\sigma_i-\bar\sigma(S_i)|}{\sqrt{\frac1{N(S_i)}\sum_{j\in S_i}(\hat\sigma_j-\bar\sigma(S_i))^2}+q|\hat\sigma_i-\bar\sigma(S_i)|},
+\\ \sigma_i^{SH}=\nu_i\bar\sigma(S_i)+(1-\nu_i)\hat\sigma_i,\qquad \hat\Sigma_u^\star=\mathrm{diag}((\sigma_1^{SH})^2,\ldots,(\sigma_N^{SH})^2).
 \end{gathered}
-$$
+```
 
 A zero denominator retains the original volatility.
 
@@ -208,11 +227,17 @@ Return only these fields; fitted means, coefficients and variance paths remain i
 
 Use $R_t=\mu_{t\mid t-1}+\varepsilon_t$, $\varepsilon_t=\sigma_tz_t$, $\sigma_t^2\equiv\sigma_{t\mid t-1}^2$.
 
-$$\text{EWMA: }\sigma_t^2=\lambda\sigma_{t-1}^2+(1-\lambda)\varepsilon_{t-1}^2,\qquad 0<\lambda<1.$$
+```math
+\text{EWMA: }\sigma_t^2=\lambda\sigma_{t-1}^2+(1-\lambda)\varepsilon_{t-1}^2,\qquad 0<\lambda<1.
+```
 
-$$\text{ARCH}(1):\sigma_t^2=\alpha_0+\alpha_1\varepsilon_{t-1}^2,\qquad \alpha_0>0,\ 0\leq\alpha_1<1.$$
+```math
+\text{ARCH}(1):\sigma_t^2=\alpha_0+\alpha_1\varepsilon_{t-1}^2,\qquad \alpha_0>0,\ 0\leq\alpha_1<1.
+```
 
-$$\text{GARCH}(1,1):\sigma_t^2=\alpha_0+\alpha_1\varepsilon_{t-1}^2+\beta_1\sigma_{t-1}^2,\qquad \alpha_0>0,\ \alpha_1,\beta_1\geq0.$$
+```math
+\text{GARCH}(1,1):\sigma_t^2=\alpha_0+\alpha_1\varepsilon_{t-1}^2+\beta_1\sigma_{t-1}^2,\qquad \alpha_0>0,\ \alpha_1,\beta_1\geq0.
+```
 
 **Calculation:** EWMA uses the supplied decay; ARCH/GARCH parameters maximize the selected likelihood. Enforce $\alpha_1<1$ for ARCH and $\alpha_1+\beta_1<1$ for GARCH, in addition to the positivity constraints above.
 
@@ -220,11 +245,15 @@ Use a constant mean: estimate $\mu$ jointly with ARCH/GARCH parameters; for EWMA
 
 The Gaussian likelihood is
 
-$$\ell(\theta)=-\frac12\sum_t[\log(2\pi)+\log\sigma_t^2(\theta)+(R_t-\mu)^2/\sigma_t^2(\theta)].$$
+```math
+\ell(\theta)=-\frac12\sum_t[\log(2\pi)+\log\sigma_t^2(\theta)+(R_t-\mu)^2/\sigma_t^2(\theta)].
+```
 
-Student-t uses $z_t=\sqrt{(\nu-2)/\nu}\,u_t$, $u_t\sim t_\nu$, $\nu>2$, and
+Student-t uses $`z_t=\sqrt{(\nu-2)/\nu}\,u_t`$, $u_t\sim t_\nu$, $\nu>2$, and
 
-$$\ell(\theta)=\sum_t\left[\log\Gamma((\nu+1)/2)-\log\Gamma(\nu/2)-\tfrac12\log(\pi(\nu-2)\sigma_t^2)-\tfrac{\nu+1}{2}\log(1+\varepsilon_t^2/((\nu-2)\sigma_t^2))\right].$$
+```math
+\ell(\theta)=\sum_t\left[\log\Gamma((\nu+1)/2)-\log\Gamma(\nu/2)-\tfrac12\log(\pi(\nu-2)\sigma_t^2)-\tfrac{\nu+1}{2}\log(1+\varepsilon_t^2/((\nu-2)\sigma_t^2))\right].
+```
 
 Here $\Gamma$ is the gamma function. Estimate $\nu$ with the other parameters. Use the same unit-variance scaling for simulation and Q-Q diagnostics; the density agrees with the [official arch reference](https://arch.readthedocs.io/en/stable/univariate/generated/generated/arch.univariate.StudentsT.loglikelihood.html). `distribution` selects the ARCH/GARCH likelihood; EWMA uses its variance recursion.
 
@@ -236,11 +265,17 @@ Fitted standardized residuals are in-sample diagnostics. Their fitted variance p
 
 **Forecast calculation:** after filtering observations through $t$, calculate the next variance using the latest innovation $\hat\varepsilon_t$ and fitted variance $\hat\sigma_t^2$:
 
-$$\text{EWMA: }\hat\sigma_{t+1\mid t}^2=\lambda\hat\sigma_t^2+(1-\lambda)\hat\varepsilon_t^2.$$
+```math
+\text{EWMA: }\hat\sigma_{t+1\mid t}^2=\lambda\hat\sigma_t^2+(1-\lambda)\hat\varepsilon_t^2.
+```
 
-$$\text{ARCH}(1):\hat\sigma_{t+1\mid t}^2=\hat\alpha_0+\hat\alpha_1\hat\varepsilon_t^2.$$
+```math
+\text{ARCH}(1):\hat\sigma_{t+1\mid t}^2=\hat\alpha_0+\hat\alpha_1\hat\varepsilon_t^2.
+```
 
-$$\text{GARCH}(1,1):\hat\sigma_{t+1\mid t}^2=\hat\alpha_0+\hat\alpha_1\hat\varepsilon_t^2+\hat\beta_1\hat\sigma_t^2.$$
+```math
+\text{GARCH}(1,1):\hat\sigma_{t+1\mid t}^2=\hat\alpha_0+\hat\alpha_1\hat\varepsilon_t^2+\hat\beta_1\hat\sigma_t^2.
+```
 
 **Validation:** require positive initial and conditional variances, at least two observations, and more observations than fitted parameters for ARCH/GARCH. Failed optimization raises an error; do not substitute another estimator.
 
@@ -262,7 +297,9 @@ All inputs refer to the same forecast origin $t$. Pass `factor_result.exposures[
 
 **Calculation:** convert the supplied covariance to correlation:
 
-$$\hat C_{ij}=\frac{\text{covariance}_{ij}}{\sqrt{\text{covariance}_{ii}\text{covariance}_{jj}}}.$$
+```math
+\hat C_{ij}=\frac{\text{covariance}_{ij}}{\sqrt{\text{covariance}_{ii}\text{covariance}_{jj}}}.
+```
 
 Construct the correlation used for rescaling:
 
@@ -277,7 +314,9 @@ Construct the correlation used for rescaling:
 
 At either level, multiply each correlation entry by the corresponding forecast standard deviations:
 
-$$\hat\Sigma_{t+1\mid t}=\hat D^{ts}_{t+1\mid t}\hat C^\star\hat D^{ts}_{t+1\mid t},\qquad \hat D^{ts}_{t+1\mid t}=\mathrm{diag}(\text{forecast\_volatility}).$$
+```math
+\hat\Sigma_{t+1\mid t}=\hat D^{ts}_{t+1\mid t}\hat C^\star\hat D^{ts}_{t+1\mid t},\qquad \hat D^{ts}_{t+1\mid t}=\mathrm{diag}(\text{forecast\_volatility}).
+```
 
 **Output:** return the covariance matrix; its diagonal equals `forecast_volatility ** 2`.
 
@@ -287,7 +326,9 @@ $$\hat\Sigma_{t+1\mid t}=\hat D^{ts}_{t+1\mid t}\hat C^\star\hat D^{ts}_{t+1\mid
 
 **Inputs:** stable estimates come from Module 2. Module 3 supplies factor and residual variance forecasts using Section 6's models. For factors, let $\hat D^{ts}_{f,t+1\mid t}$ contain forecast standard deviations and $\hat C_f^\star$ be the stable factor correlation. The dynamic estimates are
 
-$$\hat\Sigma^{ts}_{f,t+1\mid t}=\hat D^{ts}_{f,t+1\mid t}\hat C_f^\star\hat D^{ts}_{f,t+1\mid t},\qquad\hat\Sigma^{ts}_{u,t+1\mid t}=\mathrm{diag}(\hat\sigma_{u,1,t+1\mid t}^{2,ts},\ldots,\hat\sigma_{u,N,t+1\mid t}^{2,ts}).$$
+```math
+\hat\Sigma^{ts}_{f,t+1\mid t}=\hat D^{ts}_{f,t+1\mid t}\hat C_f^\star\hat D^{ts}_{f,t+1\mid t},\qquad\hat\Sigma^{ts}_{u,t+1\mid t}=\mathrm{diag}(\hat\sigma_{u,1,t+1\mid t}^{2,ts},\ldots,\hat\sigma_{u,N,t+1\mid t}^{2,ts}).
+```
 
 | Use | `stable_estimate` | `dynamic_estimate` | `stable_weight` |
 |---|---|---|---|
@@ -296,9 +337,13 @@ $$\hat\Sigma^{ts}_{f,t+1\mid t}=\hat D^{ts}_{f,t+1\mid t}\hat C_f^\star\hat D^{t
 
 **Calculation:** apply the lecture's weighted averages. The specific-risk formula below uses the Bayesian baseline; historical variances can replace it.
 
-$$\hat\Sigma_{f,t+1\mid t}=\eta_f\hat\Sigma_f^\star+(1-\eta_f)\hat\Sigma_{f,t+1\mid t}^{ts},$$
+```math
+\hat\Sigma_{f,t+1\mid t}=\eta_f\hat\Sigma_f^\star+(1-\eta_f)\hat\Sigma_{f,t+1\mid t}^{ts},
+```
 
-$$\hat\sigma_{u,i,t+1\mid t}^2=\eta_{u,i}\hat\sigma_{u,i}^{2,EB}+(1-\eta_{u,i})\hat\sigma_{u,i,t+1\mid t}^{2,ts}.$$
+```math
+\hat\sigma_{u,i,t+1\mid t}^2=\eta_{u,i}\hat\sigma_{u,i}^{2,EB}+(1-\eta_{u,i})\hat\sigma_{u,i,t+1\mid t}^{2,ts}.
+```
 
 **Output:** return the blended matrix or variance vector. Weight one returns the stable estimate; zero returns the dynamic estimate. Factor and specific blending are independently optional; without blending, use the dynamic estimate directly.
 
@@ -316,7 +361,9 @@ $$\hat\sigma_{u,i,t+1\mid t}^2=\eta_{u,i}\hat\sigma_{u,i}^{2,EB}+(1-\eta_{u,i})\
 
 **Calculation:**
 
-$$\hat\Sigma_R=\beta_t\hat\Sigma_f\beta_t^\top+\mathrm{diag}(\hat\sigma_{u,1}^2,\ldots,\hat\sigma_{u,N}^2).$$
+```math
+\hat\Sigma_R=\beta_t\hat\Sigma_f\beta_t^\top+\mathrm{diag}(\hat\sigma_{u,1}^2,\ldots,\hat\sigma_{u,N}^2).
+```
 
 The first term gives stock covariance due to shared factors. The second adds each stock's specific variance to its own diagonal entry; it does not change covariance between different stocks.
 
@@ -328,7 +375,9 @@ The first term gives stock covariance due to shared factors. The second adds eac
 
 **Default: factor-level rescaling.** The next-period stock covariance is
 
-$$\hat\Sigma_{R,t+1\mid t}=\beta_t\left(\hat D^{ts}_{f,t+1\mid t}\hat C_f^\star\hat D^{ts}_{f,t+1\mid t}\right)\beta_t^\top+\hat\Sigma^{ts}_{u,t+1\mid t}.$$
+```math
+\hat\Sigma_{R,t+1\mid t}=\beta_t\left(\hat D^{ts}_{f,t+1\mid t}\hat C_f^\star\hat D^{ts}_{f,t+1\mid t}\right)\beta_t^\top+\hat\Sigma^{ts}_{u,t+1\mid t}.
+```
 
 The inputs are:
 
@@ -384,7 +433,9 @@ Choose the stock correlation method from Section 7.1. The default `factor_model`
 
 For either calculation, divide the selected return by its forecast standard deviation and compute the sample standard deviation over time:
 
-$$b_{i,t}=R_{i,t}^e/\sigma_{i,t},\qquad B_i=\sqrt{\frac1{T-1}\sum_{t=1}^T(b_{i,t}-\bar b_i)^2}.$$
+```math
+b_{i,t}=R_{i,t}^e/\sigma_{i,t},\qquad B_i=\sqrt{\frac1{T-1}\sum_{t=1}^T(b_{i,t}-\bar b_i)^2}.
+```
 
 **Output:** return only $B_i$: near one means calibrated risk, above one means underestimated risk, and below one means overestimated risk. The lecture's approximate reference band is $[1-\sqrt{2/T},1+\sqrt{2/T}]$; dependence or heavy tails can invalidate this approximation.
 
