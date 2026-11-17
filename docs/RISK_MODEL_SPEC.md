@@ -1,6 +1,6 @@
 # Risk model implementation specification
 
-Date: 2026-11-17. Status: implemented; synthetic verification and audit completed.
+Date: 2026-11-18. Status: implemented; synthetic verification and audit completed.
 
 ## 1. Purpose and requirements
 
@@ -17,7 +17,7 @@ Requirements: preserve lecture notation/formulas; support the specified estimato
 | 1. Factor estimation | Normalize raw exposures and solve constrained WLS | Stock returns and one dated history of raw styles, industries and caps | Factor returns, residuals, exposure history, pure factor portfolios |
 | 2. Stable risk | Estimate stable covariance and specific-risk baselines; apply shrinkage | Factor/residual or stock histories; shrinkage targets/caps when needed | Covariance estimates, specific variances and shrunk matrices |
 | 3. Dynamic risk | Fit EWMA, ARCH(1) or GARCH(1,1) and forecast variance | Return histories, method and applicable parameters | Forecast variances, standardized residuals, Student-t degrees of freedom |
-| 4. Integration | Construct correlations, rescale/blend estimates and compute stock covariance | Stable covariance/specific estimates, dynamic forecasts, current exposures | Stock covariance |
+| 4. Integration | Construct correlations, rescale or blend estimates and compute stock covariance | Stable covariance/specific estimates, dynamic forecasts, current exposures | Stock covariance |
 | 5. Diagnostics | Check pure factor portfolio construction, fitted volatility and ex ante risk | Panel/factor result, standardized residuals, covariance forecasts and subsequent returns | Algebraic errors, bias statistics and residual diagnostic figures |
 
 `forecast_risk` calls the modules: Module 1 supplies Modules 2/3, which supply Module 4; Module 5 evaluates results. Stock-level dynamics consume stock returns directly. Direct stock methods need Module 1 only for factor-model structure. Synthetic generators belong to tests and the example notebook.
@@ -144,7 +144,7 @@ The block $D$ describes country/industry exposures. Style portfolios have unit o
 | `shrink_covariance(sample_covariance, method="factor_model", *, w=0.5, target_covariance=None, returns=None)` | Matrix $(d,d)$; target or return history required by the selected method below | Shrunk matrix $(d,d)$ |
 | `shrink_specific_variance(specific_variance, market_caps, q=1.0)` | Sample specific variances $(N,)$ and forecast-origin caps $(N,)$ | Bayesian-shrunk specific variances $(N,)$ |
 
-Module 1 supplies factor returns and residuals. Stock covariance uses stock returns. Covariance shrinkage is separate from estimation; only `estimate_factor_covariance` performs eigenfactor adjustment.
+Module 1 supplies factor returns and residuals. Stock covariance uses stock returns. L7 covariance shrinkage is stable asset-level blending of sample and target matrices, both $(N,N)$; it is separate from L8 dynamic blending. Only `estimate_factor_covariance` performs eigenfactor adjustment.
 
 ### 5.1 Sample covariance and covariance shrinkage
 
@@ -279,63 +279,55 @@ Fitted standardized residuals are in-sample diagnostics. Their fitted variance p
 
 **Validation:** require positive initial and conditional variances, at least two observations, and more observations than fitted parameters for ARCH/GARCH. Failed optimization raises an error; do not substitute another estimator.
 
-## 7. Module 4: covariance integration
+## 7. Module 4: dynamic covariance integration
 
-**Purpose:** rescale or blend stable estimates with one-step variance forecasts, then compute stock covariance. Section 7.4 defines the default integration and alternatives.
+**Purpose:** combine a stable risk estimate from Module 2 with one-step variance forecasts from Module 3. L8 45, 50 and 52-54 present rescaling and blending as alternative final integration methods. Stable shrinkage is an earlier estimation step, not a third dynamic integration method.
 
-All inputs refer to the same forecast origin $t$. Pass `factor_result.exposures[-1]` as `exposures` ($\beta_t$). “Stable” means a Module 2 estimate from the selected history; “dynamic” means a next-period estimate using Module 3's `forecast_variance`. Each function returns one numerical array.
+All inputs refer to the same forecast origin. Module 1 supplies `exposures = factor_result.exposures[-1]`, shape $(N,K)$. Stock and factor covariance matrices have different dimensions; do not substitute one for the other.
 
 | Public function | Inputs | Output |
 |---|---|---|
-| `rescale_covariance(covariance, forecast_volatility, method="factor_model", *, w=0.5)` | Covariance $(d,d)$ and matching forecast standard deviations $(d,)$; $d=K$ for factors or $d=N$ for stocks; correlation method and applicable shrinkage weight | Next-period covariance $(d,d)$ at the same level as the inputs |
-| `blend_risk(stable_estimate, dynamic_estimate, stable_weight=0.5)` | Stable and next-period covariance matrices $(K,K)$, or specific-variance vectors $(N,)$; weight on the stable estimate | Blended covariance $(K,K)$ or specific variances $(N,)$ |
-| `compute_asset_covariance(exposures, factor_covariance, specific_variance)` | Exposures $(N,K)$; factor covariance $(K,K)$; specific variances $(N,)$, all in matching stock/factor order | Stock covariance $(N,N)$, stable or forecast according to the supplied components |
+| `rescale_covariance(covariance, forecast_volatility, method="factor_model", *, w=0.5)` | Stable covariance $(d,d)$, forecast standard deviations $(d,)$, correlation construction | Next-period covariance $(d,d)$; $d=K$ for factors or $d=N$ for stocks |
+| `blend_risk(stable_estimate, dynamic_estimate, stable_weight=0.5)` | Matching covariance matrices or variance vectors; stable weight | Weighted-average covariance or variances; the lecture pipeline uses $(K,K)$ and $(N,)$ respectively |
+| `compute_asset_covariance(exposures, factor_covariance, specific_variance)` | Exposures $(N,K)$, factor covariance $(K,K)$, specific variances $(N,)$ | Stock covariance $(N,N)$ |
 
 ### 7.1 Rescale covariance
 
-**Inputs:** `covariance` supplies the stable correlation source in the method table below. `forecast_volatility` contains square roots of Module 3's variance forecasts for the same series: $d=K$ for factors or $d=N$ for stocks. `w` is used only by `shrinkage`.
+**Inputs:** supply a stable covariance and forecast standard deviations for the same series. Without stock covariance shrinkage, `factor_model` uses the stable factor covariance at factor level or assembled stock covariance $F$ at stock level; the other methods start from sample covariance. If Module 2 stock covariance shrinkage is enabled, its $(N,N)$ result supplies the stock-level input before the chosen correlation construction. Both stable covariance shrinkage and a correlation adjustment may therefore be used; neither changes the matrix level.
 
-**Calculation:** convert the supplied covariance to correlation:
+**Calculation:** normalize the supplied covariance to correlation, then construct the correlation for rescaling:
 
 ```math
 \hat C_{ij}=\frac{\text{covariance}_{ij}}{\sqrt{\text{covariance}_{ii}\text{covariance}_{jj}}}.
 ```
 
-Construct the correlation used for rescaling:
+| `method` | Calculation of $\hat C^\star$ |
+|---|---|
+| `"factor_model"`, `"historical_average"` | Preserve the supplied stable correlation: $\hat C^\star=\hat C$. Their unshrunk input sources differ as described above. |
+| `"constant_correlation"` | Set $\rho$ to the mean off-diagonal entry of $\hat C$; set $\hat C^\star_{ii}=1$ and $\hat C^\star_{ij}=\rho$ for $i\ne j$. |
+| `"shrinkage"` | Set $\hat C^\star=wI+(1-w)\hat C$ using Module 2's `shrink_covariance` with `method="scaled_identity"`. This shrinks correlation, distinct from ordinary stock covariance shrinkage. |
 
-| `method` | Matrix supplied by caller | Exact calculation of $\hat C^\star$ |
-|---|---|---|
-| `"factor_model"` | Factor level: $\hat\Sigma_f^\star$; stock level: $F=\beta_t\hat\Sigma_f^\star\beta_t^\top+\hat\Sigma_u^\star$ from `compute_asset_covariance` | Preserve the supplied stable correlation: $\hat C^\star=\hat C$ |
-| `"historical_average"` | Sample covariance $S$ from the selected historical return window | Keep the historical sample correlation: $\hat C^\star=\hat C$ |
-| `"constant_correlation"` | Sample covariance $S$ | Set $\rho$ to the mean of $\hat C_{ij}$ over $i\ne j$; set $\hat C^\star_{ii}=1$ and $\hat C^\star_{ij}=\rho$ for $i\ne j$ |
-| `"shrinkage"` | Sample covariance $S$ | Set $\hat C^\star=wI+(1-w)\hat C$ by calling Module 2's `shrink_covariance` on $\hat C$ with `method="scaled_identity"` and `w` |
-
-`factor_model` and `historical_average` preserve the correlation of different supplied estimates. `shrinkage` is L8's identity-target correlation shrinkage, delegated to Module 2; ordinary covariance shrinkage is defined in Section 5.1.
-
-At either level, multiply each correlation entry by the corresponding forecast standard deviations:
+Apply the forecast standard deviations:
 
 ```math
 \hat\Sigma_{t+1\mid t}=\hat D^{ts}_{t+1\mid t}\hat C^\star\hat D^{ts}_{t+1\mid t},\qquad \hat D^{ts}_{t+1\mid t}=\mathrm{diag}(\text{forecast\_volatility}).
 ```
 
-**Output:** return the covariance matrix; its diagonal equals `forecast_volatility ** 2`.
+**Output:** covariance with diagonal `forecast_volatility ** 2`.
 
-**Validation:** the covariance diagonal must be positive and forecast standard deviations nonnegative. For `shrinkage`, require $0\leq w\leq1$. For one series, correlation is $[1]$.
+**Validation:** require a positive stable covariance diagonal and matching nonnegative forecast standard deviations. For correlation shrinkage, require $0\leq w\leq1$. For one series, correlation is $[1]$.
 
-### 7.2 Blend stable and dynamic risk
+### 7.2 Blend stable and dynamic risk (L8)
 
-**Inputs:** stable estimates come from Module 2. Module 3 supplies factor and residual variance forecasts using Section 6's models. For factors, let $\hat D^{ts}_{f,t+1\mid t}$ contain forecast standard deviations and $\hat C_f^\star$ be the stable factor correlation. The dynamic estimates are
+**Inputs:** stable factor covariance $(K,K)$ and historical or Bayesian-shrunk specific variances $(N,)$ come from Module 2. Module 3 supplies factor and residual variance forecasts. Following L8 52's fixed-correlation construction, form the dynamic factor covariance using stable factor correlation:
 
 ```math
-\hat\Sigma^{ts}_{f,t+1\mid t}=\hat D^{ts}_{f,t+1\mid t}\hat C_f^\star\hat D^{ts}_{f,t+1\mid t},\qquad\hat\Sigma^{ts}_{u,t+1\mid t}=\mathrm{diag}(\hat\sigma_{u,1,t+1\mid t}^{2,ts},\ldots,\hat\sigma_{u,N,t+1\mid t}^{2,ts}).
+\hat\Sigma^{ts}_{f,t+1\mid t}=\hat D^{ts}_{f,t+1\mid t}\hat C_f^\star\hat D^{ts}_{f,t+1\mid t}.
 ```
 
-| Use | `stable_estimate` | `dynamic_estimate` | `stable_weight` |
-|---|---|---|---|
-| Factor covariance | Stable factor covariance $(K,K)$ | Rescaled factor covariance $(K,K)$ from Section 7.1 | Scalar $\eta_f$ |
-| Specific variance | Historical or Bayesian-shrunk variances $(N,)$ | Module 3 residual variance forecasts $(N,)$ | Scalar or stock-aligned vector $\eta_{u,i}$ |
+This construction may reuse `rescale_covariance` internally. It prepares the dynamic input to blending; the final estimator is the weighted average below, rather than the standalone rescaling estimator. No DCC or additional correlation setting is introduced for blending.
 
-**Calculation:** apply the lecture's weighted averages. The specific-risk formula below uses the Bayesian baseline; historical variances can replace it.
+**Calculation:** blend the two estimates at each component:
 
 ```math
 \hat\Sigma_{f,t+1\mid t}=\eta_f\hat\Sigma_f^\star+(1-\eta_f)\hat\Sigma_{f,t+1\mid t}^{ts},
@@ -345,19 +337,15 @@ At either level, multiply each correlation entry by the corresponding forecast s
 \hat\sigma_{u,i,t+1\mid t}^2=\eta_{u,i}\hat\sigma_{u,i}^{2,EB}+(1-\eta_{u,i})\hat\sigma_{u,i,t+1\mid t}^{2,ts}.
 ```
 
-**Output:** return the blended matrix or variance vector. Weight one returns the stable estimate; zero returns the dynamic estimate. Factor and specific blending are independently optional; without blending, use the dynamic estimate directly.
+Historical specific variances replace the Bayesian baseline when specific shrinkage is disabled. `factor_blending` and `specific_blending` supply the weights; both default to 0.5 when blending is selected.
 
-**Validation:** estimates must have matching shapes and weights must lie in $[0,1]$. Per-stock weights apply only to specific-variance vectors.
+**Output:** blended factor covariance and specific variances, subsequently assembled into stock covariance. Weight one selects the stable component; zero selects the dynamic component.
+
+**Validation:** estimates must have matching shapes and weights in $[0,1]$. Factor covariance uses a scalar weight; specific variances also permit a stock-aligned $(N,)$ weight vector.
 
 ### 7.3 Compute stock covariance from factor and specific risk
 
-**Inputs:** exposures, factor covariance and specific variances refer to one forecast origin:
-
-| Argument | Shape | Meaning |
-|---|---|---|
-| `exposures` | $(N,K)$ | $\beta_t$: stock exposures from Module 1 |
-| `factor_covariance` | $(K,K)$ | $\hat\Sigma_f$: covariance among factor returns |
-| `specific_variance` | $(N,)$ | $\hat\sigma_{u,i}^2$: each stock's residual variance |
+**Inputs:** forecast-origin exposures $(N,K)$, factor covariance $(K,K)$ and specific variances $(N,)$, in matching stock/factor order.
 
 **Calculation:**
 
@@ -365,34 +353,17 @@ At either level, multiply each correlation entry by the corresponding forecast s
 \hat\Sigma_R=\beta_t\hat\Sigma_f\beta_t^\top+\mathrm{diag}(\hat\sigma_{u,1}^2,\ldots,\hat\sigma_{u,N}^2).
 ```
 
-The first term gives stock covariance due to shared factors. The second adds each stock's specific variance to its own diagonal entry; it does not change covariance between different stocks.
+**Output:** stable stock covariance $F$ when inputs are stable, or a stock covariance forecast when inputs are forecasts. Specific variance contributes only to the diagonal.
 
-**Output:** one $(N,N)$ stock covariance matrix. Stable inputs give $F$ for shrinkage or correlation construction; forecast inputs give one-step stock covariance. Apply any rescaling or blending before this calculation.
+**Validation:** require matching dimensions and nonnegative specific variances.
 
-**Validation:** specific variances must be nonnegative.
+### 7.4 Integration choices and matrix levels
 
-### 7.4 Default integration and alternatives
+- **Factor rescaling (default):** stable factor covariance $(K,K)$ or factor sample covariance supplies correlation; dynamic factor variances $(K,)$ supply its scale. Assemble the result with exposures $(N,K)$ and dynamic specific variances $(N,)$. No stable/dynamic blending is performed.
+- **Stock rescaling:** a stable stock covariance $(N,N)$ supplies correlation; dynamic stock variances $(N,)$ supply its scale. The stock covariance may come from the factor model, sample returns or Module 2 stock covariance shrinkage. It is not assembled again.
+- **Dynamic blending (L8):** use stable and dynamic factor covariance $(K,K)$ plus stable and dynamic specific variances $(N,)$, as in Section 7.2. Assemble the two blended components into $(N,N)$ stock covariance. `rescaling_level` and rescaling-specific options do not apply to this recipe.
 
-**Default: factor-level rescaling.** The next-period stock covariance is
-
-```math
-\hat\Sigma_{R,t+1\mid t}=\beta_t\left(\hat D^{ts}_{f,t+1\mid t}\hat C_f^\star\hat D^{ts}_{f,t+1\mid t}\right)\beta_t^\top+\hat\Sigma^{ts}_{u,t+1\mid t}.
-```
-
-The inputs are:
-
-- $\beta_t$: stock exposures from Module 1 at the forecast origin.
-- $\hat C_f^\star$: factor correlation obtained from Module 2's stable factor covariance.
-- $\hat D^{ts}_{f,t+1\mid t}$: diagonal matrix of forecast factor standard deviations from Module 3.
-- $\hat\Sigma^{ts}_{u,t+1\mid t}$: diagonal matrix of forecast residual variances from Module 3.
-
-`rescale_covariance` calculates the factor covariance inside parentheses. `compute_asset_covariance` calculates the full expression. This default uses dynamic specific variances directly, with no blending.
-
-**Optional blending:** replace the factor covariance, specific variances, or both with the corresponding weighted averages in Section 7.2. Each blend uses equal stable/dynamic weights by default.
-
-**Alternative: stock-level rescaling.** Use stock correlation and forecast stock standard deviations directly in Section 7.1's rescaling formula. This produces the stock covariance forecast without separately forecasting factor and specific risk.
-
-Choose the stock correlation method from Section 7.1. The default `factor_model` uses $F$ computed from Module 1 exposures and Module 2's stable factor covariance and specific variances. If using Module 2's covariance shrinkage instead, convert that shrunk matrix to correlation and rescale it without applying shrinkage again.
+Stable estimation settings are not enabled or prohibited by an integration method. They affect only estimates the selected calculation consumes: stock covariance shrinkage produces $(N,N)$, so factor rescaling and L8 factor blending do not consume it. This does not restrict L7 blending to factor matrices. Bayesian specific shrinkage is consumed by a stock factor-model baseline or specific blending; it never modifies a dynamic variance forecast. No stock-to-factor covariance conversion is implied.
 
 ## 8. Module 5: risk diagnostics
 
@@ -459,15 +430,28 @@ b_{i,t}=R_{i,t}^e/\sigma_{i,t},\qquad B_i=\sqrt{\frac1{T-1}\sum_{t=1}^T(b_{i,t}-
 
 ## 9. Package API
 
-**Purpose:** `risk_model.py` connects the modules into the default forecasting pipeline.
+**Purpose:** connect stable estimation, dynamic estimation and the selected integration method. Helpers stay in `risk_model.py`; calculations remain in the owning numerical modules.
 
 | Public function | Inputs | Output |
 |---|---|---|
-| `forecast_risk(panel, as_of)` | `RiskPanel` and forecast-origin date | One-step stock covariance $(N,N)$ |
+| `forecast_risk(panel, as_of, *, factor_covariance=None, covariance_shrinkage=None, specific_shrinkage=None, dynamic_variance=None, integration_method="rescale", rescaling_level="factor", rescaling=None, factor_blending=None, specific_blending=None)` | `RiskPanel`, forecast-origin date and the options below | One-step stock covariance $(N,N)$ |
 
-**Calculation:** truncate every panel history at `as_of`, then use all remaining observations for Section 7.4's default factor-level path. Call the module functions with their own defaults. The caller may shorten the panel before calling.
+**Inputs:** dictionaries forward parameters directly. Omitted parameters retain module defaults. Shrinkage is off with `None` and on with a dictionary, including `{}`. Blending is selected only by `integration_method="blend"`; its weight dictionaries use module defaults when `None` or `{}`. Inactive settings are ignored.
 
-For other methods, separate estimation windows or intermediate results, call the module functions directly with their existing arguments. Keep defaults in those functions; do not duplicate them in a settings object or validator. All lecture methods remain available through the module APIs.
+| Option (module order) | Meaning / receiving function |
+|---|---|
+| `factor_covariance` | `estimate_factor_covariance`: `eigenfactor_adjustment`, `simulations`, `a` |
+| `covariance_shrinkage` | `shrink_covariance`: `method`, `w`; creates a stable stock covariance, never a factor covariance |
+| `specific_shrinkage` | `shrink_specific_variance`: `q`; stabilizes specific variance |
+| `dynamic_variance` | `estimate_dynamic_variance`: `method`, `lambda_`, `distribution` |
+| `integration_method` | `"rescale"` (default) or `"blend"`: choose the L8 dynamic integration method |
+| `rescaling_level` | `"factor"` (default) or `"stock"`; applies only to rescaling |
+| `rescaling` | `rescale_covariance`: correlation `method`, `w`; applies only to rescaling |
+| `factor_blending`, `specific_blending` | `blend_risk`: `stable_weight`; apply only to blending |
+
+**Calculation:** truncate every panel history at `as_of`, estimate the required stable components and dynamic variances, then follow exactly one recipe in Section 7.4. Stock covariance shrinkage precedes stock correlation construction, so it may combine with any rescaling correlation method. Blending uses fixed stable factor correlation to construct its dynamic input, and defaults to equal stable/dynamic weights for both components. Defaults preserve the original factor-rescaling forecast.
+
+**Validation:** reject unknown integration methods and, when rescaling is selected, unknown rescaling levels. Ignore stable estimates and method-specific settings that the selected recipe does not use. Numerical functions validate their active inputs; no additional cross-stage prohibition is imposed. Call modules directly for separate history windows or intermediate estimates.
 
 **Package:** `src/risk_model/` contains `factor_model.py`, `stable_risk.py`, `dynamic_risk.py`, `integration.py`, `diagnostics.py`, the top-level `risk_model.py` and private validation. Import `forecast_risk` from `risk_model`; import other functions from their owning package modules. Tests live in `tests/`; the self-contained synthetic example is `notebooks/synthetic_example.ipynb`. Dependencies are declared in `pyproject.toml`. Follow PEP 8/YAGNI.
 
@@ -476,11 +460,11 @@ For other methods, separate estimation windows or intermediate results, call the
 Use synthetic data only. Retain the input validation specified in each module; use numerical tolerances for floating-point comparisons.
 
 - **Factor construction:** on a small panel with unequal caps and multiple industries, verify return reconstruction and the industry constraint. The pure factor portfolio diagnostic must report near-zero errors for correct results and detect deliberately incorrect portfolios.
-- **Risk calculations:** give each lecture method one small independent numerical reference case. Cover covariance/shrinkage formulas, eigenfactor adjustment, variance recursions and likelihoods, rescaling, blending and stock covariance assembly. Check the relevant matrix properties and preserve valid singular covariance.
+- **Risk calculations:** give each lecture method one small independent numerical reference case. Cover covariance/shrinkage formulas, eigenfactor adjustment, variance recursions and likelihoods, rescaling, blending and stock covariance assembly. Check alternative integration methods and stable-shrinkage/correlation composition at matching dimensions. Check the relevant matrix properties and preserve valid singular covariance.
 - **Diagnostics:** compare ordinary and eigenfactor bias statistics with a direct calculation. Inspect one residual diagnostic figure for the two ACF panels, the correct Q-Q reference and mean/variance annotations.
 - **Timing:** verify the one-row exposure lag. Changing observations after the forecast origin must not change that origin's forecast.
 - **End-to-end:** run the default pipeline on one seeded synthetic panel with known conditional covariance. Check finite, symmetric positive-semidefinite forecasts; compare them with the known covariance using Frobenius error and evaluate bias against subsequent returns. The example also displays the Module 5 diagnostics. Keep synthetic latent quantities outside estimator inputs.
 
 **Completion:** all Section 2 lecture methods are implemented, the checks above pass, and the synthetic example runs successfully. Real-data calibration and downstream investment work remain pending.
 
-**Run:** from the repository root, install with `python -m pip install -e ".[dev]"`, run `python -m pytest -q`, then open `notebooks/synthetic_example.ipynb` with `python -m jupyterlab notebooks/synthetic_example.ipynb`. Run all cells using the installed environment; results and the diagnostic figure are retained inline. Each Python file and the notebook's combined code stay below 200 lines.
+**Run:** from the repository root, install with `python -m pip install -e ".[dev]"`, run `python -m pytest -q`, then open `notebooks/synthetic_example.ipynb` with `python -m jupyterlab notebooks/synthetic_example.ipynb`. Run all cells using the installed environment; results and the diagnostic figure are retained inline. `risk_model.py` stays within 100 lines; other Python files and the notebook's combined code stay below 200 lines.

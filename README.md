@@ -44,18 +44,18 @@ The default `forecast_risk(panel, as_of)` pipeline:
    specific variances.
 
 The default uses factor-level rescaling and dynamic specific variances directly.
-Other lecture methods are available through the individual modules:
+Alternative lecture methods are available through the options below and the individual modules:
 
 | Component | Available methods and outputs |
 |---|---|
 | Factor estimation | Constrained WLS; factor returns, stock residuals, exposure history and pure factor portfolio weights |
 | Stable risk | Sample covariance/variance, eigenfactor adjustment, covariance shrinkage toward factor-model, scaled-identity or constant-correlation targets, Ledoit–Wolf shrinkage, and Bayesian specific-variance shrinkage |
 | Dynamic risk | EWMA, ARCH(1), GARCH(1,1); Gaussian or Student-t likelihood for ARCH/GARCH |
-| Integration | Factor- or stock-level covariance rescaling, stable/dynamic blending, and stock covariance construction |
+| Integration | Factor- or stock-level rescaling, or factor/specific blending; stock covariance construction |
 | Diagnostics | Pure factor portfolio algebraic errors, ordinary/eigenfactor portfolio risk bias, and standardized-residual plots |
 
-These alternatives are explicit module calls; the top-level function uses the
-defaults above. Detailed signatures and formulas are in the
+Select alternatives through the `forecast_risk` options below, or call the
+individual modules. Detailed signatures and formulas are in the
 [implementation specification](docs/RISK_MODEL_SPEC.md).
 
 ## Install and run the example
@@ -145,6 +145,51 @@ Inputs must be finite and correctly aligned; industries must be represented and
 raw styles must have positive cross-sectional dispersion. Invalid inputs and
 failed volatility fits raise errors. Data sourcing, cleaning, missing-value
 imputation, and economic style-descriptor construction are not included.
+
+### Customize risk estimation
+
+Stable estimation includes **L7 asset-level blending (covariance shrinkage)**.
+`integration_method` then chooses **L8 dynamic rescaling or blending**, with
+rescaling the default. Dictionaries override selected parameters;
+unspecified parameters retain defaults. Shrinkage is off with `None`, on with
+`{}`. In blending mode, weight dictionaries use 50/50 defaults with `None` or `{}`.
+Settings for estimates or methods the selected calculation does not use are ignored.
+
+Options follow the SPEC order: stable risk → dynamic risk → integration.
+The dictionary column shows defaults **when that calculation is used**.
+
+| Option | Default value / dictionary | Purpose |
+|---|---|---|
+| `factor_covariance` | `{"eigenfactor_adjustment": True}` | Stable factor covariance; `False` selects sample covariance. |
+| `covariance_shrinkage` | `{"method": "factor_model", "w": 0.5}` | L7: blend sample stock covariance with a target; `w` is target weight. |
+| `specific_shrinkage` | `{"q": 1.0}` | Bayesian shrinkage of the stable specific-variance baseline. |
+| `dynamic_variance` | `{"method": "garch", "distribution": "student_t"}` | Forecast factor/residual or stock variances. |
+| `integration_method` | `"rescale"` | Choose L8 dynamic `"rescale"` or `"blend"`. |
+| `rescaling_level` | `"factor"` | For rescaling: factor covariance `(K,K)` or `"stock"` covariance `(N,N)`. |
+| `rescaling` | `{"method": "factor_model"}` | For rescaling: choose correlation and apply matching forecast volatilities. |
+| `factor_blending` | `{"stable_weight": 0.5}` | For L8 blending: combine stable/dynamic factor covariance, weight on stable. |
+| `specific_blending` | `{"stable_weight": 0.5}` | For L8 blending: combine stable/dynamic specific variances, weight on stable. |
+
+For example, choose L8 dynamic blending with EWMA dynamics and a Bayesian specific baseline:
+
+```python
+stock_covariance = forecast_risk(
+    panel, as_of=panel.dates[-1],
+    specific_shrinkage={},
+    dynamic_variance={"method": "ewma", "lambda_": 0.97},
+    integration_method="blend",
+    factor_blending={"stable_weight": 0.3},
+    specific_blending={},
+)
+```
+
+- **L7 stable blending:** combines `(N,N)` sample and target stock covariance. Its result can precede any stock rescaling correlation method; factor-level integration does not consume it.
+- **Rescaling output:** stock rescaling already produces complete `(N,N)` stock covariance, so it is returned directly. Factor rescaling produces `(K,K)` factor covariance, which still needs exposures and specific variances to assemble stock covariance.
+- **L8 blending input:** forecast factor volatilities and fixed stable factor correlation first produce `dynamic_factor_cov`, a `(K,K)` matrix. This reuses the rescaling calculation to prepare an input. The final estimator blends that input with stable factor covariance, blends specific variances separately, then assembles stock covariance.
+
+Every call returns `(N,N)` stock covariance. The [notebook's customization examples](notebooks/synthetic_example.ipynb)
+list alternative methods and additional parameters beside each example. To migrate
+an earlier blending call, explicitly add `integration_method="blend"`.
 
 ## Verification and project layout
 
