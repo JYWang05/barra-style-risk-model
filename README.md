@@ -24,7 +24,7 @@ Stock covariance combines shared factor risk and stock-specific variance:
 ```math
 \widehat\Sigma_{R,t+1\mid t}
 = \beta_t\widehat\Sigma_{f,t+1\mid t}\beta_t^\top
-+ \operatorname{diag}(\widehat\sigma^2_{u,t+1\mid t}).
++ \mathrm{diag}(\widehat\sigma^2_{u,t+1\mid t}).
 ```
 
 Here, $\beta_t$ contains stock exposures, $\widehat\Sigma_f$ is factor covariance,

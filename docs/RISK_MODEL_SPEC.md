@@ -171,7 +171,7 @@ $$
 \begin{gathered}
 \bar\sigma(S_i)=\sum_{j\in S_i}w_j\hat\sigma_j,\\
 \nu_i=\frac{q|\hat\sigma_i-\bar\sigma(S_i)|}{\sqrt{\frac1{N(S_i)}\sum_{j\in S_i}(\hat\sigma_j-\bar\sigma(S_i))^2}+q|\hat\sigma_i-\bar\sigma(S_i)|},\\
-\sigma_i^{SH}=\nu_i\bar\sigma(S_i)+(1-\nu_i)\hat\sigma_i,\qquad \hat\Sigma_u^\star=\operatorname{diag}((\sigma_1^{SH})^2,\ldots,(\sigma_N^{SH})^2).
+\sigma_i^{SH}=\nu_i\bar\sigma(S_i)+(1-\nu_i)\hat\sigma_i,\qquad \hat\Sigma_u^\star=\mathrm{diag}((\sigma_1^{SH})^2,\ldots,(\sigma_N^{SH})^2).
 \end{gathered}
 $$
 
@@ -277,7 +277,7 @@ Construct the correlation used for rescaling:
 
 At either level, multiply each correlation entry by the corresponding forecast standard deviations:
 
-$$\hat\Sigma_{t+1\mid t}=\hat D^{ts}_{t+1\mid t}\hat C^\star\hat D^{ts}_{t+1\mid t},\qquad \hat D^{ts}_{t+1\mid t}=\operatorname{diag}(\text{forecast\_volatility}).$$
+$$\hat\Sigma_{t+1\mid t}=\hat D^{ts}_{t+1\mid t}\hat C^\star\hat D^{ts}_{t+1\mid t},\qquad \hat D^{ts}_{t+1\mid t}=\mathrm{diag}(\text{forecast\_volatility}).$$
 
 **Output:** return the covariance matrix; its diagonal equals `forecast_volatility ** 2`.
 
@@ -287,7 +287,7 @@ $$\hat\Sigma_{t+1\mid t}=\hat D^{ts}_{t+1\mid t}\hat C^\star\hat D^{ts}_{t+1\mid
 
 **Inputs:** stable estimates come from Module 2. Module 3 supplies factor and residual variance forecasts using Section 6's models. For factors, let $\hat D^{ts}_{f,t+1\mid t}$ contain forecast standard deviations and $\hat C_f^\star$ be the stable factor correlation. The dynamic estimates are
 
-$$\hat\Sigma^{ts}_{f,t+1\mid t}=\hat D^{ts}_{f,t+1\mid t}\hat C_f^\star\hat D^{ts}_{f,t+1\mid t},\qquad\hat\Sigma^{ts}_{u,t+1\mid t}=\operatorname{diag}(\hat\sigma_{u,1,t+1\mid t}^{2,ts},\ldots,\hat\sigma_{u,N,t+1\mid t}^{2,ts}).$$
+$$\hat\Sigma^{ts}_{f,t+1\mid t}=\hat D^{ts}_{f,t+1\mid t}\hat C_f^\star\hat D^{ts}_{f,t+1\mid t},\qquad\hat\Sigma^{ts}_{u,t+1\mid t}=\mathrm{diag}(\hat\sigma_{u,1,t+1\mid t}^{2,ts},\ldots,\hat\sigma_{u,N,t+1\mid t}^{2,ts}).$$
 
 | Use | `stable_estimate` | `dynamic_estimate` | `stable_weight` |
 |---|---|---|---|
@@ -316,7 +316,7 @@ $$\hat\sigma_{u,i,t+1\mid t}^2=\eta_{u,i}\hat\sigma_{u,i}^{2,EB}+(1-\eta_{u,i})\
 
 **Calculation:**
 
-$$\hat\Sigma_R=\beta_t\hat\Sigma_f\beta_t^\top+\operatorname{diag}(\hat\sigma_{u,1}^2,\ldots,\hat\sigma_{u,N}^2).$$
+$$\hat\Sigma_R=\beta_t\hat\Sigma_f\beta_t^\top+\mathrm{diag}(\hat\sigma_{u,1}^2,\ldots,\hat\sigma_{u,N}^2).$$
 
 The first term gives stock covariance due to shared factors. The second adds each stock's specific variance to its own diagonal entry; it does not change covariance between different stocks.
 
